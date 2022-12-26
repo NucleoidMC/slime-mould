@@ -10,11 +10,12 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
+import net.minecraft.screen.ScreenTexts;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.DyeColor;
 import net.minecraft.util.Formatting;
@@ -22,33 +23,32 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.world.GameMode;
 import org.jetbrains.annotations.Nullable;
+import xyz.nucleoid.plasmid.game.GameActivity;
 import xyz.nucleoid.plasmid.game.GameCloseReason;
-import xyz.nucleoid.plasmid.game.GameLogic;
 import xyz.nucleoid.plasmid.game.GameSpace;
-import xyz.nucleoid.plasmid.game.event.GameOpenListener;
-import xyz.nucleoid.plasmid.game.event.GameTickListener;
-import xyz.nucleoid.plasmid.game.event.OfferPlayerListener;
-import xyz.nucleoid.plasmid.game.event.PlayerAddListener;
-import xyz.nucleoid.plasmid.game.event.PlayerDamageListener;
-import xyz.nucleoid.plasmid.game.event.UseBlockListener;
-import xyz.nucleoid.plasmid.game.player.GameTeam;
-import xyz.nucleoid.plasmid.game.player.JoinResult;
+import xyz.nucleoid.plasmid.game.common.GlobalWidgets;
+import xyz.nucleoid.plasmid.game.common.team.GameTeam;
+import xyz.nucleoid.plasmid.game.common.team.GameTeamConfig;
+import xyz.nucleoid.plasmid.game.common.team.GameTeamKey;
+import xyz.nucleoid.plasmid.game.common.widget.SidebarWidget;
+import xyz.nucleoid.plasmid.game.event.GameActivityEvents;
+import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.game.player.PlayerOffer;
+import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
 import xyz.nucleoid.plasmid.game.player.PlayerSet;
-import xyz.nucleoid.plasmid.game.rule.GameRule;
-import xyz.nucleoid.plasmid.game.rule.RuleResult;
+import xyz.nucleoid.plasmid.game.rule.GameRuleType;
 import xyz.nucleoid.plasmid.util.ItemStackBuilder;
-import xyz.nucleoid.plasmid.widget.GlobalWidgets;
-import xyz.nucleoid.plasmid.widget.SidebarWidget;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldMap;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldPlate;
+import xyz.nucleoid.stimuli.event.block.BlockUseEvent;
+import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 public final class SlimeMouldActive {
     private static final long CLOSE_TICKS = 20 * 5;
@@ -56,8 +56,8 @@ public final class SlimeMouldActive {
     private static final Item GROWTH_ITEM = Items.WOODEN_HOE;
 
     private static final ItemStackBuilder GROWTH_STACK = ItemStackBuilder.of(GROWTH_ITEM)
-            .setName(new LiteralText("Grow your mould!").formatted(Formatting.GREEN, Formatting.BOLD))
-            .addLore(new LiteralText("Right click on blocks adjacent to your own to grow"));
+            .setName(Text.literal("Grow your mould!").formatted(Formatting.GREEN, Formatting.BOLD))
+            .addLore(Text.literal("Right click on blocks adjacent to your own to grow"));
 
     private static final EntityAttributeModifier STRETCHED_THIN_MODIFIER = new EntityAttributeModifier(
             "slime_mould_stretched_thin",
@@ -66,6 +66,7 @@ public final class SlimeMouldActive {
     );
 
     private final GameSpace gameSpace;
+    private final ServerWorld world;
     private final SlimeMouldMap map;
     private final SlimeMouldConfig config;
 
@@ -75,57 +76,55 @@ public final class SlimeMouldActive {
 
     private final SlimeMouldFood food;
 
-    private boolean opened;
     private boolean singlePlayer;
 
     private long lastFoodSpawnTime;
 
     private long closeTime = -1;
 
-    private SlimeMouldActive(GameLogic gameLogic, SlimeMouldMap map, SlimeMouldConfig config, GlobalWidgets widgets) {
-        this.gameSpace = gameLogic.getSpace();
+    private SlimeMouldActive(GameActivity activity, ServerWorld world, SlimeMouldMap map, SlimeMouldConfig config, GlobalWidgets widgets) {
+        this.gameSpace = activity.getGameSpace();
+        this.world = world;
         this.map = map;
         this.config = config;
 
-        this.food = new SlimeMouldFood(gameLogic);
+        this.food = new SlimeMouldFood(activity, world);
 
-        this.sidebar = widgets.addSidebar(new LiteralText("Slime Mould!").formatted(Formatting.RED, Formatting.BOLD));
+        this.sidebar = widgets.addSidebar(Text.literal("Slime Mould!").formatted(Formatting.RED, Formatting.BOLD));
     }
 
-    public static void open(GameSpace gameSpace, SlimeMouldMap map, SlimeMouldConfig config) {
-        gameSpace.openGame(game -> {
-            GlobalWidgets widgets = new GlobalWidgets(game);
+    public static void open(GameSpace gameSpace, ServerWorld world, SlimeMouldMap map, SlimeMouldConfig config) {
+        gameSpace.setActivity(activity -> {
+            GlobalWidgets widgets = GlobalWidgets.addTo(activity);
 
-            SlimeMouldActive active = new SlimeMouldActive(game, map, config, widgets);
+            SlimeMouldActive active = new SlimeMouldActive(activity, world, map, config, widgets);
 
-            game.setRule(GameRule.CRAFTING, RuleResult.DENY);
-            game.setRule(GameRule.PVP, RuleResult.DENY);
-            game.setRule(GameRule.BLOCK_DROPS, RuleResult.DENY);
-            game.setRule(GameRule.FALL_DAMAGE, RuleResult.DENY);
-            game.setRule(GameRule.HUNGER, RuleResult.DENY);
-            game.setRule(GameRule.THROW_ITEMS, RuleResult.DENY);
-            game.setRule(GameRule.PVP, RuleResult.DENY);
+            activity.deny(GameRuleType.CRAFTING);
+            activity.deny(GameRuleType.PVP);
+            activity.deny(GameRuleType.BLOCK_DROPS);
+            activity.deny(GameRuleType.FALL_DAMAGE);
+            activity.deny(GameRuleType.HUNGER);
+            activity.deny(GameRuleType.THROW_ITEMS);
+            activity.deny(GameRuleType.PVP);
 
-            game.on(GameOpenListener.EVENT, active::onOpen);
+            activity.listen(GameActivityEvents.ENABLE, active::onEnable);
 
-            game.on(OfferPlayerListener.EVENT, player -> JoinResult.ok());
-            game.on(PlayerAddListener.EVENT, active::addPlayer);
+            activity.listen(GamePlayerEvents.OFFER, active::onOffer);
 
-            game.on(GameTickListener.EVENT, active::tick);
-            game.on(UseBlockListener.EVENT, active::onUseBlock);
+            activity.listen(GameActivityEvents.TICK, active::tick);
+            activity.listen(BlockUseEvent.EVENT, active::onUseBlock);
 
-            game.on(PlayerDamageListener.EVENT, (player, source, amount) -> ActionResult.FAIL);
+            activity.listen(PlayerDamageEvent.EVENT, (player, source, amount) -> ActionResult.FAIL);
         });
     }
 
-    private void onOpen() {
+    private void onEnable() {
         int plateRadius = this.map.getPlate().radius;
         double spawnRadius = plateRadius * (3.0 / 4.0);
 
-        ServerWorld world = this.gameSpace.getWorld();
         PlayerSet players = this.gameSpace.getPlayers();
 
-        List<DyeColor> colors = SlimeMouldColors.shuffledColors(world.random);
+        List<DyeColor> colors = SlimeMouldColors.shuffledColors(this.world.random);
 
         int i = 0;
 
@@ -143,24 +142,21 @@ public final class SlimeMouldActive {
 
         this.spawnInitialFood();
 
-        this.opened = true;
         this.singlePlayer = players.size() == 1;
-        this.lastFoodSpawnTime = world.getTime();
+        this.lastFoodSpawnTime = this.world.getTime();
 
         this.updateSidebar();
     }
 
     private void spawnPlayer(ServerPlayerEntity player, Mould mould, double theta, double radius) {
-        ServerWorld world = this.gameSpace.getWorld();
-
         float yaw = (float) Math.toDegrees(theta);
 
         BlockPos spawnPos = this.map.getPlate().getSpawnPos(theta, radius);
-        player.teleport(world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, yaw, 0.0F);
+        player.teleport(this.world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, yaw, 0.0F);
 
-        world.setBlockState(spawnPos, mould.block);
+        this.world.setBlockState(spawnPos, mould.block);
 
-        player.inventory.insertStack(GROWTH_STACK.build());
+        player.getInventory().insertStack(GROWTH_STACK.build());
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.JUMP_BOOST, Integer.MAX_VALUE, 200, false, false));
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, Integer.MAX_VALUE, 0, false, false));
     }
@@ -176,15 +172,8 @@ public final class SlimeMouldActive {
         }
     }
 
-    private void addPlayer(ServerPlayerEntity player) {
-        if (this.opened) {
-            this.spawnSpectator(player);
-        }
-    }
-
     private void tick() {
-        ServerWorld world = this.gameSpace.getWorld();
-        long time = world.getTime();
+        long time = this.world.getTime();
 
         if (this.closeTime > 0) {
             this.tickClosing(time);
@@ -208,8 +197,7 @@ public final class SlimeMouldActive {
     }
 
     private boolean trySpawnFood() {
-        ServerWorld world = this.gameSpace.getWorld();
-        BlockPos foodSpawnPos = this.findFoodSpawnPos(world, world.random);
+        BlockPos foodSpawnPos = this.findFoodSpawnPos(this.world, this.world.random);
         if (foodSpawnPos == null) {
             return false;
         }
@@ -285,12 +273,11 @@ public final class SlimeMouldActive {
     }
 
     private boolean tryGrowInto(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        ServerWorld world = this.gameSpace.getWorld();
-        if (world.getBlockState(pos) == mould.block || player.getItemCooldownManager().isCoolingDown(GROWTH_ITEM)) {
+        if (this.world.getBlockState(pos) == mould.block || player.getItemCooldownManager().isCoolingDown(GROWTH_ITEM)) {
             return false;
         }
 
-        SlimeMouldPlate.Surface surface = this.map.getPlate().testSurface(world, pos);
+        SlimeMouldPlate.Surface surface = this.map.getPlate().testSurface(this.world, pos);
         if (!surface.isSterile() || !this.hasAdjacentMould(pos, mould)) {
             return false;
         }
@@ -326,12 +313,10 @@ public final class SlimeMouldActive {
     }
 
     private boolean hasAdjacentMould(BlockPos pos, Mould mould) {
-        ServerWorld world = this.gameSpace.getWorld();
-
         BlockPos.Mutable mutablePos = new BlockPos.Mutable();
         for (int i = 0; i < 4; i++) {
             mutablePos.set(pos, Direction.fromHorizontal(i));
-            if (world.getBlockState(mutablePos) == mould.block) {
+            if (this.world.getBlockState(mutablePos) == mould.block) {
                 return true;
             }
         }
@@ -354,11 +339,10 @@ public final class SlimeMouldActive {
         return null;
     }
 
-    private void spawnSpectator(ServerPlayerEntity player) {
-        player.setGameMode(GameMode.SPECTATOR);
-
-        Vec3d spawn = this.map.getWaitingSpawn();
-        player.teleport(this.gameSpace.getWorld(), spawn.x, spawn.y, spawn.z, 0.0F, 0.0F);
+    private PlayerOfferResult onOffer(PlayerOffer offer) {
+        return offer.accept(this.world, this.map.getWaitingSpawn()).and(() -> {
+            offer.player().changeGameMode(GameMode.SPECTATOR);
+        });
     }
 
     private void updateFoodBar(ServerPlayerEntity player, Mould mould) {
@@ -368,16 +352,18 @@ public final class SlimeMouldActive {
 
     private void updateSidebar() {
         this.sidebar.set(content -> {
-            content.writeLine(Formatting.GREEN + "Expand your slime mould!");
-            content.writeLine("");
+            content.add(Text.literal("Expand your slime mould!").formatted(Formatting.GREEN));
+            content.add(ScreenTexts.EMPTY);
 
             this.playerToMould.values().stream()
                     .sorted(Comparator.comparingInt(mould -> -mould.score))
                     .limit(8)
                     .forEach(mould -> {
-                        String name = mould.team.getFormatting() + mould.team.getDisplay();
-                        String score = Formatting.GOLD.toString() + mould.score;
-                        content.writeLine(name + ": " + score);
+                        content.add(
+                            mould.team.config().name().copy()
+                                    .append(": ")
+                                    .append(Text.literal(mould.score + "").formatted(Formatting.GOLD))
+                        );
                     });
         });
     }
@@ -395,7 +381,7 @@ public final class SlimeMouldActive {
     private void eliminate(Mould mould) {
         if (this.playerToMould.remove(mould.player, mould)) {
             this.gameSpace.getPlayers().sendMessage(
-                    new LiteralText(mould.player.getName())
+                    Text.literal(mould.player.getName())
                             .append(" has been eliminated!")
                             .formatted(Formatting.RED)
             );
@@ -424,7 +410,14 @@ public final class SlimeMouldActive {
             this.player = profile;
 
             this.dyeColor = dyeColor;
-            this.team = new GameTeam(dyeColor.getName(), profile.getName(), dyeColor);
+
+            GameTeamKey key = new GameTeamKey(dyeColor.getName());
+            GameTeamConfig teamConfig = GameTeamConfig.builder()
+                    .setName(Text.literal(profile.getName()))
+                    .setColors(GameTeamConfig.Colors.from(dyeColor))
+                    .build();
+
+            this.team = new GameTeam(key, teamConfig);
             this.block = SlimeMouldPlate.getMouldBlock(dyeColor);
 
             this.food = initialFood;

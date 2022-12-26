@@ -1,15 +1,16 @@
 package xyz.nucleoid.slime_mould.game.map;
 
 import net.minecraft.block.BlockState;
-import net.minecraft.text.LiteralText;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import xyz.nucleoid.map_templates.BlockBounds;
+import xyz.nucleoid.map_templates.MapTemplate;
+import xyz.nucleoid.map_templates.MapTemplateMetadata;
+import xyz.nucleoid.map_templates.MapTemplateSerializer;
+import xyz.nucleoid.map_templates.TemplateRegion;
 import xyz.nucleoid.plasmid.game.GameOpenException;
-import xyz.nucleoid.plasmid.map.template.MapTemplate;
-import xyz.nucleoid.plasmid.map.template.MapTemplateMetadata;
-import xyz.nucleoid.plasmid.map.template.MapTemplateSerializer;
-import xyz.nucleoid.plasmid.map.template.TemplateRegion;
-import xyz.nucleoid.plasmid.util.BlockBounds;
 
 import java.io.IOException;
 
@@ -20,12 +21,12 @@ public final class SlimeMouldMapBuilder {
         this.config = config;
     }
 
-    public SlimeMouldMap build() {
+    public SlimeMouldMap build(MinecraftServer server) {
         MapTemplate template;
         try {
-            template = MapTemplateSerializer.INSTANCE.loadFromResource(this.config.template);
+            template = MapTemplateSerializer.loadFromResource(server, this.config.template);
         } catch (IOException e) {
-            throw new GameOpenException(new LiteralText("Failed to load map template"), e);
+            throw new GameOpenException(Text.literal("Failed to load map template"), e);
         }
 
         MapTemplateMetadata metadata = template.getMetadata();
@@ -37,7 +38,7 @@ public final class SlimeMouldMapBuilder {
     private SlimeMouldPlate buildPlate(MapTemplate template, MapTemplateMetadata metadata) {
         TemplateRegion plate = metadata.getFirstRegion("plate");
         if (plate == null) {
-            throw new GameOpenException(new LiteralText("Missing plate region!"));
+            throw new GameOpenException(Text.literal("Missing plate region!"));
         }
 
         int radius = this.computePlateRadius(template, plate.getBounds());
@@ -45,8 +46,8 @@ public final class SlimeMouldMapBuilder {
     }
 
     private int computePlateRadius(MapTemplate template, BlockBounds plateBounds) {
-        BlockPos plateCenter = new BlockPos(plateBounds.getCenter());
-        BlockPos plateSize = plateBounds.getSize();
+        BlockPos plateCenter = new BlockPos(plateBounds.center());
+        BlockPos plateSize = plateBounds.size();
         int plateRadius = Math.min(plateSize.getX(), plateSize.getZ()) / 2;
 
         BlockPos.Mutable surfacePos = new BlockPos.Mutable();

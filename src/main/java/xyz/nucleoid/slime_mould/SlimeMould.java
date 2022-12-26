@@ -13,8 +13,8 @@ public final class SlimeMould implements ModInitializer {
     public void onInitialize() {
         GameType.register(
                 new Identifier(SlimeMould.ID, "slime_mould"),
-                SlimeMouldWaiting::open,
-                SlimeMouldConfig.CODEC
+                SlimeMouldConfig.CODEC,
+                SlimeMouldWaiting::open
         );
     }
 }

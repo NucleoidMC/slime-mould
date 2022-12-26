@@ -1,12 +1,12 @@
 package xyz.nucleoid.slime_mould.game;
 
-import com.google.common.collect.Lists;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.util.DyeColor;
+import net.minecraft.util.Util;
+import net.minecraft.util.math.random.Random;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 public final class SlimeMouldColors {
     public static final DyeColor[] COLORS = Arrays.stream(DyeColor.values())
@@ -14,8 +14,8 @@ public final class SlimeMouldColors {
             .toArray(DyeColor[]::new);
 
     public static List<DyeColor> shuffledColors(Random random) {
-        List<DyeColor> colors = Lists.newArrayList(COLORS);
-        Collections.shuffle(colors, random);
+        ObjectArrayList<DyeColor> colors = new ObjectArrayList<>(COLORS);
+        Util.shuffle(colors, random);
         return colors;
     }
 }

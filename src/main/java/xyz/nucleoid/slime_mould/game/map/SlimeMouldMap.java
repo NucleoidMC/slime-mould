@@ -3,8 +3,8 @@ package xyz.nucleoid.slime_mould.game.map;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
-import xyz.nucleoid.plasmid.map.template.MapTemplate;
-import xyz.nucleoid.plasmid.map.template.TemplateChunkGenerator;
+import xyz.nucleoid.map_templates.MapTemplate;
+import xyz.nucleoid.plasmid.game.world.generator.TemplateChunkGenerator;
 
 public final class SlimeMouldMap {
     private final MapTemplate template;
@@ -20,7 +20,7 @@ public final class SlimeMouldMap {
     }
 
     public Vec3d getWaitingSpawn() {
-        Vec3d center = this.plate.bounds.getCenter();
+        Vec3d center = this.plate.bounds.center();
         return center.add(0.0, 1.0, 0.0);
     }
 

@@ -2,7 +2,7 @@ package xyz.nucleoid.slime_mould.game;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import xyz.nucleoid.plasmid.game.config.PlayerConfig;
+import xyz.nucleoid.plasmid.game.common.config.PlayerConfig;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldMapConfig;
 
 public final class SlimeMouldConfig {

@@ -8,10 +8,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.DyeColor;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import xyz.nucleoid.plasmid.util.BlockBounds;
+import net.minecraft.util.math.random.Random;
+import xyz.nucleoid.map_templates.BlockBounds;
 import xyz.nucleoid.plasmid.util.ColoredBlocks;
-
-import java.util.Random;
 
 public final class SlimeMouldPlate {
     public final BlockBounds bounds;
@@ -27,8 +26,8 @@ public final class SlimeMouldPlate {
     }
 
     public BlockPos getRandomSurfacePos(Random random) {
-        BlockPos min = this.bounds.getMin();
-        BlockPos max = this.bounds.getMax();
+        BlockPos min = this.bounds.min();
+        BlockPos max = this.bounds.max();
 
         return new BlockPos(
                 min.getX() + random.nextInt(max.getX() - min.getX() + 1),
@@ -46,8 +45,8 @@ public final class SlimeMouldPlate {
     }
 
     public BlockPos getSpawnPos(double theta, double distance) {
-        Vec3d plateCenter = this.bounds.getCenterTop();
-        int plateY = this.bounds.getMax().getY();
+        Vec3d plateCenter = this.bounds.centerTop();
+        int plateY = this.bounds.max().getY();
 
         double spawnX = plateCenter.x + Math.cos(theta) * distance;
         double spawnZ = plateCenter.z - Math.sin(theta) * distance;
