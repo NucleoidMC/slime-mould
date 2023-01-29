@@ -1,0 +1,12 @@
+{
+  "gameType.slime_mould.slime_mould": "Slime Mould",
+  "gameType.slime_mould.standard": "Slime Mould",
+  "text.slime_mould.eliminated": "%s has been eliminated!",
+  "text.slime_mould.growth_stack.description": "Right click on blocks adjacent to your own to grow",
+  "text.slime_mould.growth_stack.name": "Grow your mould!",
+  "text.slime_mould.no_plate_region": "Missing plate region!",
+  "text.slime_mould.sidebar.description": "Expand your slime mould!",
+  "text.slime_mould.sidebar.line": "%s: %s",
+  "text.slime_mould.sidebar.title": "Slime Mould!",
+  "text.slime_mould.template_load_failed": "Failed to load map template"
+}

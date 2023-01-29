@@ -26,7 +26,7 @@ public final class SlimeMouldMapBuilder {
         try {
             template = MapTemplateSerializer.loadFromResource(server, this.config.template);
         } catch (IOException e) {
-            throw new GameOpenException(Text.literal("Failed to load map template"), e);
+            throw new GameOpenException(Text.translatable("text.slime_mould.template_load_failed"), e);
         }
 
         MapTemplateMetadata metadata = template.getMetadata();
@@ -38,7 +38,7 @@ public final class SlimeMouldMapBuilder {
     private SlimeMouldPlate buildPlate(MapTemplate template, MapTemplateMetadata metadata) {
         TemplateRegion plate = metadata.getFirstRegion("plate");
         if (plate == null) {
-            throw new GameOpenException(Text.literal("Missing plate region!"));
+            throw new GameOpenException(Text.translatable("text.slime_mould.no_plate_region"));
         }
 
         int radius = this.computePlateRadius(template, plate.getBounds());

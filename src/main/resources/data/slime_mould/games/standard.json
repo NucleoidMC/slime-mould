@@ -1,6 +1,5 @@
 {
   "type": "slime_mould:slime_mould",
-  "name": "Slime Mould",
   "map": {
     "template": "slime_mould:slime_mould"
   },

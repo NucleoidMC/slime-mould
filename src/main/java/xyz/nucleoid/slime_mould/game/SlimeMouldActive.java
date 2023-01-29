@@ -56,8 +56,8 @@ public final class SlimeMouldActive {
     private static final Item GROWTH_ITEM = Items.WOODEN_HOE;
 
     private static final ItemStackBuilder GROWTH_STACK = ItemStackBuilder.of(GROWTH_ITEM)
-            .setName(Text.literal("Grow your mould!").formatted(Formatting.GREEN, Formatting.BOLD))
-            .addLore(Text.literal("Right click on blocks adjacent to your own to grow"));
+            .setName(Text.translatable("text.slime_mould.growth_stack.name").formatted(Formatting.GREEN, Formatting.BOLD))
+            .addLore(Text.translatable("text.slime_mould.growth_stack.description"));
 
     private static final EntityAttributeModifier STRETCHED_THIN_MODIFIER = new EntityAttributeModifier(
             "slime_mould_stretched_thin",
@@ -90,7 +90,7 @@ public final class SlimeMouldActive {
 
         this.food = new SlimeMouldFood(activity, world);
 
-        this.sidebar = widgets.addSidebar(Text.literal("Slime Mould!").formatted(Formatting.RED, Formatting.BOLD));
+        this.sidebar = widgets.addSidebar(Text.translatable("text.slime_mould.sidebar.title").formatted(Formatting.RED, Formatting.BOLD));
     }
 
     public static void open(GameSpace gameSpace, ServerWorld world, SlimeMouldMap map, SlimeMouldConfig config) {
@@ -352,18 +352,17 @@ public final class SlimeMouldActive {
 
     private void updateSidebar() {
         this.sidebar.set(content -> {
-            content.add(Text.literal("Expand your slime mould!").formatted(Formatting.GREEN));
+            content.add(Text.translatable("text.slime_mould.sidebar.description").formatted(Formatting.GREEN));
             content.add(ScreenTexts.EMPTY);
 
             this.playerToMould.values().stream()
                     .sorted(Comparator.comparingInt(mould -> -mould.score))
                     .limit(8)
                     .forEach(mould -> {
-                        content.add(
-                            mould.team.config().name().copy()
-                                    .append(": ")
-                                    .append(Text.literal(mould.score + "").formatted(Formatting.GOLD))
-                        );
+                        Text name = mould.team.config().name();
+                        Text score = Text.literal(mould.score + "").formatted(Formatting.GOLD);
+
+                        content.add(Text.translatable("text.slime_mould.sidebar.line", name, score));
                     });
         });
     }
@@ -381,8 +380,7 @@ public final class SlimeMouldActive {
     private void eliminate(Mould mould) {
         if (this.playerToMould.remove(mould.player, mould)) {
             this.gameSpace.getPlayers().sendMessage(
-                    Text.literal(mould.player.getName())
-                            .append(" has been eliminated!")
+                    Text.translatable("text.slime_mould.eliminated", mould.player.getName())
                             .formatted(Formatting.RED)
             );
         }
