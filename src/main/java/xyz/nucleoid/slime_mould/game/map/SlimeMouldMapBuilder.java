@@ -46,7 +46,7 @@ public final class SlimeMouldMapBuilder {
     }
 
     private int computePlateRadius(MapTemplate template, BlockBounds plateBounds) {
-        BlockPos plateCenter = new BlockPos(plateBounds.center());
+        BlockPos plateCenter = BlockPos.ofFloored(plateBounds.center());
         BlockPos plateSize = plateBounds.size();
         int plateRadius = Math.min(plateSize.getX(), plateSize.getZ()) / 2;
 

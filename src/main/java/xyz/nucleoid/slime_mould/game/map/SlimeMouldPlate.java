@@ -51,7 +51,7 @@ public final class SlimeMouldPlate {
         double spawnX = plateCenter.x + Math.cos(theta) * distance;
         double spawnZ = plateCenter.z - Math.sin(theta) * distance;
 
-        return new BlockPos(spawnX, plateY, spawnZ);
+        return BlockPos.ofFloored(spawnX, plateY, spawnZ);
     }
 
     public static Surface testSurface(Block block) {
