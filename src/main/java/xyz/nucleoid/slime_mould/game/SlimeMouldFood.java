@@ -79,7 +79,7 @@ public final class SlimeMouldFood implements Iterable<SlimeMouldFood.Instance> {
     }
 
     private void sendFoodTo(Instance food, ServerPlayerEntity player) {
-        Random random = player.world.random;
+        Random random = player.getWorld().getRandom();
 
         SlimeEntity entity = this.slimeEntity;
         entity.setId(food.entityId);

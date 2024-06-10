@@ -49,6 +49,7 @@ import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public final class SlimeMouldActive {
     private static final long CLOSE_TICKS = 20 * 5;
@@ -59,7 +60,10 @@ public final class SlimeMouldActive {
             .setName(Text.translatable("text.slime_mould.growth_stack.name").formatted(Formatting.GREEN, Formatting.BOLD))
             .addLore(Text.translatable("text.slime_mould.growth_stack.description"));
 
+    private static final UUID STRETCHED_THIN_MODIFIER_UUID = UUID.fromString("566d6476-a2ec-43de-9697-b67ca3900bd7");
+
     private static final EntityAttributeModifier STRETCHED_THIN_MODIFIER = new EntityAttributeModifier(
+            STRETCHED_THIN_MODIFIER_UUID,
             "slime_mould_stretched_thin",
             -0.5,
             EntityAttributeModifier.Operation.MULTIPLY_BASE
@@ -240,7 +244,7 @@ public final class SlimeMouldActive {
     }
 
     private void onMouldMove(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        BlockState surface = player.world.getBlockState(pos.down());
+        BlockState surface = player.getWorld().getBlockState(pos.down());
 
         boolean slowed = surface != mould.block && !this.hasAdjacentMould(pos, mould);
 
@@ -250,7 +254,7 @@ public final class SlimeMouldActive {
                 if (slowed) {
                     attribute.addTemporaryModifier(STRETCHED_THIN_MODIFIER);
                 } else {
-                    attribute.removeModifier(STRETCHED_THIN_MODIFIER);
+                    attribute.removeModifier(STRETCHED_THIN_MODIFIER_UUID);
                 }
             }
         }
@@ -300,12 +304,12 @@ public final class SlimeMouldActive {
             mould.food += this.config.foodLevelPerFood;
         }
 
-        Mould existingMould = this.getMouldFor(player.world.getBlockState(pos));
+        Mould existingMould = this.getMouldFor(player.getWorld().getBlockState(pos));
         if (existingMould != null && --existingMould.score <= 0) {
             this.eliminate(existingMould);
         }
 
-        player.world.setBlockState(pos, mould.block);
+        player.getWorld().setBlockState(pos, mould.block);
         mould.score++;
 
         this.updateFoodBar(player, mould);
