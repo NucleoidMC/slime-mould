@@ -10,7 +10,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import xyz.nucleoid.map_templates.BlockBounds;
-import xyz.nucleoid.plasmid.util.ColoredBlocks;
+import xyz.nucleoid.plasmid.api.util.ColoredBlocks;
 
 public final class SlimeMouldPlate {
     public final BlockBounds bounds;

@@ -6,15 +6,16 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.SlimeEntity;
 import net.minecraft.network.packet.s2c.play.EntitiesDestroyS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityTrackerUpdateS2CPacket;
+import net.minecraft.server.network.EntityTrackerEntry;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.random.Random;
-import xyz.nucleoid.plasmid.game.GameActivity;
-import xyz.nucleoid.plasmid.game.GameSpace;
-import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.api.game.GameActivity;
+import xyz.nucleoid.plasmid.api.game.GameSpace;
+import xyz.nucleoid.plasmid.api.game.event.GamePlayerEvents;
 
 import java.util.Iterator;
 
@@ -88,7 +89,7 @@ public final class SlimeMouldFood implements Iterable<SlimeMouldFood.Instance> {
         entity.setYaw(random.nextFloat() * 360.0F);
 
         ServerPlayNetworkHandler networkHandler = player.networkHandler;
-        networkHandler.sendPacket(entity.createSpawnPacket());
+        networkHandler.sendPacket(entity.createSpawnPacket(new EntityTrackerEntry(this.world, entity, 0, false, packet -> {})));
         networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(food.entityId, entity.getDataTracker().getChangedEntries()));
     }
 

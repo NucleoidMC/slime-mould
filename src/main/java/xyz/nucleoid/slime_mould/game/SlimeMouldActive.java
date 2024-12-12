@@ -2,13 +2,17 @@ package xyz.nucleoid.slime_mould.game;
 
 import com.mojang.authlib.GameProfile;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import net.minecraft.SharedConstants;
 import net.minecraft.block.BlockState;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.UseCooldownComponent;
 import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -20,53 +24,59 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.DyeColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.GameMode;
 import org.jetbrains.annotations.Nullable;
-import xyz.nucleoid.plasmid.game.GameActivity;
-import xyz.nucleoid.plasmid.game.GameCloseReason;
-import xyz.nucleoid.plasmid.game.GameSpace;
-import xyz.nucleoid.plasmid.game.common.GlobalWidgets;
-import xyz.nucleoid.plasmid.game.common.team.GameTeam;
-import xyz.nucleoid.plasmid.game.common.team.GameTeamConfig;
-import xyz.nucleoid.plasmid.game.common.team.GameTeamKey;
-import xyz.nucleoid.plasmid.game.common.widget.SidebarWidget;
-import xyz.nucleoid.plasmid.game.event.GameActivityEvents;
-import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
-import xyz.nucleoid.plasmid.game.player.PlayerOffer;
-import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
-import xyz.nucleoid.plasmid.game.player.PlayerSet;
-import xyz.nucleoid.plasmid.game.rule.GameRuleType;
-import xyz.nucleoid.plasmid.util.ItemStackBuilder;
+import xyz.nucleoid.plasmid.api.game.GameActivity;
+import xyz.nucleoid.plasmid.api.game.GameCloseReason;
+import xyz.nucleoid.plasmid.api.game.GameSpace;
+import xyz.nucleoid.plasmid.api.game.common.GlobalWidgets;
+import xyz.nucleoid.plasmid.api.game.common.team.GameTeam;
+import xyz.nucleoid.plasmid.api.game.common.team.GameTeamConfig;
+import xyz.nucleoid.plasmid.api.game.common.team.GameTeamKey;
+import xyz.nucleoid.plasmid.api.game.common.widget.SidebarWidget;
+import xyz.nucleoid.plasmid.api.game.event.GameActivityEvents;
+import xyz.nucleoid.plasmid.api.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptor;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptorResult;
+import xyz.nucleoid.plasmid.api.game.player.JoinOffer;
+import xyz.nucleoid.plasmid.api.game.player.PlayerSet;
+import xyz.nucleoid.plasmid.api.game.rule.GameRuleType;
+import xyz.nucleoid.plasmid.api.util.ItemStackBuilder;
+import xyz.nucleoid.slime_mould.SlimeMould;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldMap;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldPlate;
+import xyz.nucleoid.stimuli.event.EventResult;
 import xyz.nucleoid.stimuli.event.block.BlockUseEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
+import java.util.Set;
 
 public final class SlimeMouldActive {
     private static final long CLOSE_TICKS = 20 * 5;
 
+    private static final Identifier GROWTH_ID = SlimeMould.identifier("growth");
     private static final Item GROWTH_ITEM = Items.WOODEN_HOE;
 
-    private static final ItemStackBuilder GROWTH_STACK = ItemStackBuilder.of(GROWTH_ITEM)
+    private static final ItemStack BASE_GROWTH_STACK = ItemStackBuilder.of(GROWTH_ITEM)
             .setName(Text.translatable("text.slime_mould.growth_stack.name").formatted(Formatting.GREEN, Formatting.BOLD))
-            .addLore(Text.translatable("text.slime_mould.growth_stack.description"));
+            .addLore(Text.translatable("text.slime_mould.growth_stack.description"))
+            .build();
 
-    private static final UUID STRETCHED_THIN_MODIFIER_UUID = UUID.fromString("566d6476-a2ec-43de-9697-b67ca3900bd7");
+    private static final Identifier STRETCHED_THIN_MODIFIER_ID = SlimeMould.identifier("stretched_thin");
 
     private static final EntityAttributeModifier STRETCHED_THIN_MODIFIER = new EntityAttributeModifier(
-            STRETCHED_THIN_MODIFIER_UUID,
-            "slime_mould_stretched_thin",
+            STRETCHED_THIN_MODIFIER_ID,
             -0.5,
-            EntityAttributeModifier.Operation.MULTIPLY_BASE
+            EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
     );
 
     private final GameSpace gameSpace;
@@ -79,6 +89,8 @@ public final class SlimeMouldActive {
     private final Map<GameProfile, Mould> playerToMould = new Object2ObjectOpenHashMap<>();
 
     private final SlimeMouldFood food;
+
+    private final ItemStack growthStack;
 
     private boolean singlePlayer;
 
@@ -93,6 +105,15 @@ public final class SlimeMouldActive {
         this.config = config;
 
         this.food = new SlimeMouldFood(activity, world);
+
+        if (this.config.growCooldown > 0) {
+            this.growthStack = BASE_GROWTH_STACK.copy();
+
+            UseCooldownComponent useCooldown = new UseCooldownComponent(this.config.growCooldown / (float) SharedConstants.TICKS_PER_SECOND, Optional.of(GROWTH_ID));
+            this.growthStack.set(DataComponentTypes.USE_COOLDOWN, useCooldown);
+        } else {
+            this.growthStack = BASE_GROWTH_STACK;
+        }
 
         this.sidebar = widgets.addSidebar(Text.translatable("text.slime_mould.sidebar.title").formatted(Formatting.RED, Formatting.BOLD));
     }
@@ -113,12 +134,13 @@ public final class SlimeMouldActive {
 
             activity.listen(GameActivityEvents.ENABLE, active::onEnable);
 
-            activity.listen(GamePlayerEvents.OFFER, active::onOffer);
+            activity.listen(GamePlayerEvents.ACCEPT, active::onAcceptPlayers);
+            activity.listen(GamePlayerEvents.OFFER, JoinOffer::acceptSpectators);
 
             activity.listen(GameActivityEvents.TICK, active::tick);
             activity.listen(BlockUseEvent.EVENT, active::onUseBlock);
 
-            activity.listen(PlayerDamageEvent.EVENT, (player, source, amount) -> ActionResult.FAIL);
+            activity.listen(PlayerDamageEvent.EVENT, (player, source, amount) -> EventResult.DENY);
         });
     }
 
@@ -156,12 +178,15 @@ public final class SlimeMouldActive {
         float yaw = (float) Math.toDegrees(theta);
 
         BlockPos spawnPos = this.map.getPlate().getSpawnPos(theta, radius);
-        player.teleport(this.world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, yaw, 0.0F);
+        player.teleport(this.world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, Set.of(), yaw, 0.0F, true);
 
         this.world.setBlockState(spawnPos, mould.block);
 
-        player.getInventory().insertStack(GROWTH_STACK.build());
-        player.addStatusEffect(new StatusEffectInstance(StatusEffects.JUMP_BOOST, Integer.MAX_VALUE, 200, false, false));
+        player.getInventory().insertStack(this.growthStack.copy());
+
+        EntityAttributeInstance jumpStrength = player.getAttributes().getCustomInstance(EntityAttributes.JUMP_STRENGTH);
+        jumpStrength.setBaseValue(0);
+
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, Integer.MAX_VALUE, 0, false, false));
     }
 
@@ -249,12 +274,12 @@ public final class SlimeMouldActive {
         boolean slowed = surface != mould.block && !this.hasAdjacentMould(pos, mould);
 
         if (mould.updateSlowed(slowed)) {
-            EntityAttributeInstance attribute = player.getAttributes().getCustomInstance(EntityAttributes.GENERIC_MOVEMENT_SPEED);
+            EntityAttributeInstance attribute = player.getAttributes().getCustomInstance(EntityAttributes.MOVEMENT_SPEED);
             if (attribute != null) {
                 if (slowed) {
                     attribute.addTemporaryModifier(STRETCHED_THIN_MODIFIER);
                 } else {
-                    attribute.removeModifier(STRETCHED_THIN_MODIFIER_UUID);
+                    attribute.removeModifier(STRETCHED_THIN_MODIFIER_ID);
                 }
             }
         }
@@ -277,7 +302,7 @@ public final class SlimeMouldActive {
     }
 
     private boolean tryGrowInto(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        if (this.world.getBlockState(pos) == mould.block || player.getItemCooldownManager().isCoolingDown(GROWTH_ITEM)) {
+        if (this.world.getBlockState(pos) == mould.block || player.getItemCooldownManager().isCoolingDown(this.growthStack)) {
             return false;
         }
 
@@ -295,12 +320,13 @@ public final class SlimeMouldActive {
     }
 
     private void growInto(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        if (this.config.growCooldown > 0) {
-            player.getItemCooldownManager().set(GROWTH_ITEM, this.config.growCooldown);
+        UseCooldownComponent useCooldown = this.growthStack.get(DataComponentTypes.USE_COOLDOWN);
+        if (useCooldown != null) {
+            useCooldown.set(this.growthStack, player);
         }
 
         if (this.food.removeFoodAt(pos.up())) {
-            player.playSound(SoundEvents.ENTITY_PLAYER_BURP, SoundCategory.PLAYERS, 1.0F, 1.0F);
+            player.playSoundToPlayer(SoundEvents.ENTITY_PLAYER_BURP, SoundCategory.PLAYERS, 1.0F, 1.0F);
             mould.food += this.config.foodLevelPerFood;
         }
 
@@ -343,9 +369,9 @@ public final class SlimeMouldActive {
         return null;
     }
 
-    private PlayerOfferResult onOffer(PlayerOffer offer) {
-        return offer.accept(this.world, this.map.getWaitingSpawn()).and(() -> {
-            offer.player().changeGameMode(GameMode.SPECTATOR);
+    private JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
+        return acceptor.teleport(this.world, this.map.getWaitingSpawn()).thenRunForEach(player -> {
+            player.changeGameMode(GameMode.SPECTATOR);
         });
     }
 
