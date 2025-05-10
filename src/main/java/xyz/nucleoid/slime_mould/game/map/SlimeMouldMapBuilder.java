@@ -54,7 +54,7 @@ public final class SlimeMouldMapBuilder {
         BlockPos.Mutable abovePos = new BlockPos.Mutable();
 
         for (int i = 0; i < 4; i++) {
-            Direction direction = Direction.fromHorizontal(i);
+            Direction direction = Direction.fromHorizontalQuarterTurns(i);
             surfacePos.set(plateCenter);
 
             for (int x = 0; x <= plateRadius; x++) {

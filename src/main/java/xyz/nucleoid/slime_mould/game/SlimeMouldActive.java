@@ -345,7 +345,7 @@ public final class SlimeMouldActive {
     private boolean hasAdjacentMould(BlockPos pos, Mould mould) {
         BlockPos.Mutable mutablePos = new BlockPos.Mutable();
         for (int i = 0; i < 4; i++) {
-            mutablePos.set(pos, Direction.fromHorizontal(i));
+            mutablePos.set(pos, Direction.fromHorizontalQuarterTurns(i));
             if (this.world.getBlockState(mutablePos) == mould.block) {
                 return true;
             }
