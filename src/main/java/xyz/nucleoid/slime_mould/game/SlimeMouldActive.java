@@ -439,7 +439,7 @@ public final class SlimeMouldActive {
 
             this.dyeColor = dyeColor;
 
-            GameTeamKey key = new GameTeamKey(dyeColor.getName());
+            GameTeamKey key = new GameTeamKey(dyeColor.getId());
             GameTeamConfig teamConfig = GameTeamConfig.builder()
                     .setName(Text.literal(profile.getName()))
                     .setColors(GameTeamConfig.Colors.from(dyeColor))

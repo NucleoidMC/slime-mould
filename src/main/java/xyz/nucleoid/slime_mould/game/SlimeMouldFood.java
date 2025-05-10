@@ -89,7 +89,7 @@ public final class SlimeMouldFood implements Iterable<SlimeMouldFood.Instance> {
         entity.setYaw(random.nextFloat() * 360.0F);
 
         ServerPlayNetworkHandler networkHandler = player.networkHandler;
-        networkHandler.sendPacket(entity.createSpawnPacket(new EntityTrackerEntry(this.world, entity, 0, false, packet -> {})));
+        networkHandler.sendPacket(entity.createSpawnPacket(new EntityTrackerEntry(this.world, entity, 0, false, packet -> {}, (packet, uuids) -> {})));
         networkHandler.sendPacket(new EntityTrackerUpdateS2CPacket(food.entityId, entity.getDataTracker().getChangedEntries()));
     }
 
