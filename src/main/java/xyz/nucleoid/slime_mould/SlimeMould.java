@@ -1,8 +1,9 @@
 package xyz.nucleoid.slime_mould;
 
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 import xyz.nucleoid.plasmid.api.game.GameType;
+import xyz.nucleoid.plasmid.api.game.GameTypes;
 import xyz.nucleoid.slime_mould.game.SlimeMouldConfig;
 import xyz.nucleoid.slime_mould.game.SlimeMouldWaiting;
 
@@ -11,7 +12,7 @@ public final class SlimeMould implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        GameType.register(
+        GameTypes.register(
                 SlimeMould.identifier("slime_mould"),
                 SlimeMouldConfig.CODEC,
                 SlimeMouldWaiting::open
@@ -19,6 +20,6 @@ public final class SlimeMould implements ModInitializer {
     }
 
     public static Identifier identifier(String path) {
-        return Identifier.of(SlimeMould.ID, path);
+        return Identifier.fromNamespaceAndPath(SlimeMould.ID, path);
     }
 }

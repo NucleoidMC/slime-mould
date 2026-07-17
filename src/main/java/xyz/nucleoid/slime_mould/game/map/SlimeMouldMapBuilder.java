@@ -1,10 +1,10 @@
 package xyz.nucleoid.slime_mould.game.map;
 
-import net.minecraft.block.BlockState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.world.level.block.state.BlockState;
 import xyz.nucleoid.map_templates.BlockBounds;
 import xyz.nucleoid.map_templates.MapTemplate;
 import xyz.nucleoid.map_templates.MapTemplateMetadata;
@@ -26,7 +26,7 @@ public final class SlimeMouldMapBuilder {
         try {
             template = MapTemplateSerializer.loadFromResource(server, this.config.template);
         } catch (IOException e) {
-            throw new GameOpenException(Text.translatable("text.slime_mould.template_load_failed"), e);
+            throw new GameOpenException(Component.translatable("text.slime_mould.template_load_failed"), e);
         }
 
         MapTemplateMetadata metadata = template.getMetadata();
@@ -38,7 +38,7 @@ public final class SlimeMouldMapBuilder {
     private SlimeMouldPlate buildPlate(MapTemplate template, MapTemplateMetadata metadata) {
         TemplateRegion plate = metadata.getFirstRegion("plate");
         if (plate == null) {
-            throw new GameOpenException(Text.translatable("text.slime_mould.no_plate_region"));
+            throw new GameOpenException(Component.translatable("text.slime_mould.no_plate_region"));
         }
 
         int radius = this.computePlateRadius(template, plate.getBounds());
@@ -46,20 +46,20 @@ public final class SlimeMouldMapBuilder {
     }
 
     private int computePlateRadius(MapTemplate template, BlockBounds plateBounds) {
-        BlockPos plateCenter = BlockPos.ofFloored(plateBounds.center());
+        BlockPos plateCenter = BlockPos.containing(plateBounds.center());
         BlockPos plateSize = plateBounds.size();
         int plateRadius = Math.min(plateSize.getX(), plateSize.getZ()) / 2;
 
-        BlockPos.Mutable surfacePos = new BlockPos.Mutable();
-        BlockPos.Mutable abovePos = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos surfacePos = new BlockPos.MutableBlockPos();
+        BlockPos.MutableBlockPos abovePos = new BlockPos.MutableBlockPos();
 
         for (int i = 0; i < 4; i++) {
-            Direction direction = Direction.fromHorizontalQuarterTurns(i);
+            Direction direction = Direction.from2DDataValue(i);
             surfacePos.set(plateCenter);
 
             for (int x = 0; x <= plateRadius; x++) {
                 BlockState surface = template.getBlockState(surfacePos);
-                BlockState above = template.getBlockState(abovePos.set(surfacePos, Direction.UP));
+                BlockState above = template.getBlockState(abovePos.setWithOffset(surfacePos, Direction.UP));
 
                 if (!SlimeMouldPlate.testSurface(surface.getBlock()).isOnPlate() || !above.isAir()) {
                     plateRadius = x;

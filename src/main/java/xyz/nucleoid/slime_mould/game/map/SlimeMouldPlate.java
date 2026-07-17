@@ -1,14 +1,14 @@
 package xyz.nucleoid.slime_mould.game.map;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.StainedGlassBlock;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.DyeColor;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.random.Random;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.StainedGlassBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import xyz.nucleoid.map_templates.BlockBounds;
 import xyz.nucleoid.plasmid.api.util.ColoredBlocks;
 
@@ -22,10 +22,10 @@ public final class SlimeMouldPlate {
     }
 
     public static BlockState getMouldBlock(DyeColor color) {
-        return ColoredBlocks.glass(color).getDefaultState();
+        return ColoredBlocks.glass(color).defaultBlockState();
     }
 
-    public BlockPos getRandomSurfacePos(Random random) {
+    public BlockPos getRandomSurfacePos(RandomSource random) {
         BlockPos min = this.bounds.min();
         BlockPos max = this.bounds.max();
 
@@ -36,8 +36,8 @@ public final class SlimeMouldPlate {
         );
     }
 
-    public Surface testSurface(ServerWorld world, BlockPos pos) {
-        if (this.bounds.contains(pos) && world.isAir(pos.up())) {
+    public Surface testSurface(ServerLevel world, BlockPos pos) {
+        if (this.bounds.contains(pos) && world.isEmptyBlock(pos.above())) {
             BlockState state = world.getBlockState(pos);
             return testSurface(state.getBlock());
         }
@@ -45,17 +45,17 @@ public final class SlimeMouldPlate {
     }
 
     public BlockPos getSpawnPos(double theta, double distance) {
-        Vec3d plateCenter = this.bounds.centerTop();
+        Vec3 plateCenter = this.bounds.centerTop();
         int plateY = this.bounds.max().getY();
 
         double spawnX = plateCenter.x + Math.cos(theta) * distance;
         double spawnZ = plateCenter.z - Math.sin(theta) * distance;
 
-        return BlockPos.ofFloored(spawnX, plateY, spawnZ);
+        return BlockPos.containing(spawnX, plateY, spawnZ);
     }
 
     public static Surface testSurface(Block block) {
-        if (block == Blocks.WHITE_STAINED_GLASS) {
+        if (block == Blocks.STAINED_GLASS.white()) {
             return Surface.STERILE;
         } else if (block instanceof StainedGlassBlock) {
             return Surface.MOULD;

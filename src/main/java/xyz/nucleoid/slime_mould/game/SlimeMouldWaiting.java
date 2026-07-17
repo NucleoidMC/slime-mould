@@ -1,10 +1,6 @@
 package xyz.nucleoid.slime_mould.game;
 
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
-import xyz.nucleoid.fantasy.RuntimeWorldConfig;
+import xyz.nucleoid.fantasy.RuntimeLevelConfig;
 import xyz.nucleoid.plasmid.api.game.GameOpenContext;
 import xyz.nucleoid.plasmid.api.game.GameOpenProcedure;
 import xyz.nucleoid.plasmid.api.game.GameResult;
@@ -24,12 +20,16 @@ import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 import java.util.OptionalInt;
 import java.util.Set;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 
 public final class SlimeMouldWaiting {
-    private final ServerWorld world;
+    private final ServerLevel world;
     private final SlimeMouldMap map;
 
-    private SlimeMouldWaiting(ServerWorld world, SlimeMouldMap map) {
+    private SlimeMouldWaiting(ServerLevel world, SlimeMouldMap map) {
 		this.world = world;
         this.map = map;
     }
@@ -39,10 +39,10 @@ public final class SlimeMouldWaiting {
         SlimeMouldMapBuilder mapBuilder = new SlimeMouldMapBuilder(config.map);
         SlimeMouldMap map = mapBuilder.build(context.server());
 
-        RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
+        RuntimeLevelConfig worldConfig = new RuntimeLevelConfig()
                 .setGenerator(map.asGenerator(context.server()));
 
-        return context.openWithWorld(worldConfig, (activity, world) -> {
+        return context.openWithLevel(worldConfig, (activity, world) -> {
             OptionalInt maxPlayers = limit(config.players.playerConfig().maxPlayers(), SlimeMouldColors.COLORS.length);
             PlayerLimiterConfig limiterConfig = new PlayerLimiterConfig(maxPlayers, config.players.playerConfig().allowSpectators());
             WaitingLobbyConfig players = new WaitingLobbyConfig(limiterConfig, config.players.minPlayers(), config.players.thresholdPlayers(), config.players.countdown());
@@ -68,15 +68,15 @@ public final class SlimeMouldWaiting {
 
     private JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
         return acceptor.teleport(this.world, this.map.getWaitingSpawn()).thenRunForEach(player -> {
-            player.changeGameMode(GameMode.ADVENTURE);
+            player.setGameMode(GameType.ADVENTURE);
         });
     }
 
-    private void spawnPlayer(ServerPlayerEntity player) {
-        player.changeGameMode(GameMode.ADVENTURE);
+    private void spawnPlayer(ServerPlayer player) {
+        player.setGameMode(GameType.ADVENTURE);
 
-        Vec3d spawn = this.map.getWaitingSpawn();
-        player.teleport(this.world, spawn.x, spawn.y, spawn.z, Set.of(), 0.0F, 0.0F, true);
+        Vec3 spawn = this.map.getWaitingSpawn();
+        player.teleportTo(this.world, spawn.x, spawn.y, spawn.z, Set.of(), 0.0F, 0.0F, true);
     }
 
     private static OptionalInt limit(OptionalInt value, int max) {

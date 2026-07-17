@@ -2,34 +2,34 @@ package xyz.nucleoid.slime_mould.game;
 
 import com.mojang.authlib.GameProfile;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
-import net.minecraft.block.BlockState;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.UseCooldownComponent;
-import net.minecraft.entity.attribute.EntityAttributeInstance;
-import net.minecraft.entity.attribute.EntityAttributeModifier;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.screen.ScreenTexts;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.DyeColor;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.world.GameMode;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.UseCooldown;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 import xyz.nucleoid.plasmid.api.game.GameActivity;
 import xyz.nucleoid.plasmid.api.game.GameCloseReason;
@@ -47,6 +47,7 @@ import xyz.nucleoid.plasmid.api.game.player.JoinOffer;
 import xyz.nucleoid.plasmid.api.game.player.PlayerSet;
 import xyz.nucleoid.plasmid.api.game.rule.GameRuleType;
 import xyz.nucleoid.plasmid.api.util.ItemStackBuilder;
+import xyz.nucleoid.plasmid.api.util.PlayerUtil;
 import xyz.nucleoid.slime_mould.SlimeMould;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldMap;
 import xyz.nucleoid.slime_mould.game.map.SlimeMouldPlate;
@@ -67,20 +68,20 @@ public final class SlimeMouldActive {
     private static final Item GROWTH_ITEM = Items.WOODEN_HOE;
 
     private static final ItemStack BASE_GROWTH_STACK = ItemStackBuilder.of(GROWTH_ITEM)
-            .setName(Text.translatable("text.slime_mould.growth_stack.name").formatted(Formatting.GREEN, Formatting.BOLD))
-            .addLore(Text.translatable("text.slime_mould.growth_stack.description"))
+            .setName(Component.translatable("text.slime_mould.growth_stack.name").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD))
+            .addLore(Component.translatable("text.slime_mould.growth_stack.description"))
             .build();
 
     private static final Identifier STRETCHED_THIN_MODIFIER_ID = SlimeMould.identifier("stretched_thin");
 
-    private static final EntityAttributeModifier STRETCHED_THIN_MODIFIER = new EntityAttributeModifier(
+    private static final AttributeModifier STRETCHED_THIN_MODIFIER = new AttributeModifier(
             STRETCHED_THIN_MODIFIER_ID,
             -0.5,
-            EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+            AttributeModifier.Operation.ADD_MULTIPLIED_BASE
     );
 
     private final GameSpace gameSpace;
-    private final ServerWorld world;
+    private final ServerLevel world;
     private final SlimeMouldMap map;
     private final SlimeMouldConfig config;
 
@@ -98,7 +99,7 @@ public final class SlimeMouldActive {
 
     private long closeTime = -1;
 
-    private SlimeMouldActive(GameActivity activity, ServerWorld world, SlimeMouldMap map, SlimeMouldConfig config, GlobalWidgets widgets) {
+    private SlimeMouldActive(GameActivity activity, ServerLevel world, SlimeMouldMap map, SlimeMouldConfig config, GlobalWidgets widgets) {
         this.gameSpace = activity.getGameSpace();
         this.world = world;
         this.map = map;
@@ -109,16 +110,16 @@ public final class SlimeMouldActive {
         if (this.config.growCooldown > 0) {
             this.growthStack = BASE_GROWTH_STACK.copy();
 
-            UseCooldownComponent useCooldown = new UseCooldownComponent(this.config.growCooldown / (float) SharedConstants.TICKS_PER_SECOND, Optional.of(GROWTH_ID));
-            this.growthStack.set(DataComponentTypes.USE_COOLDOWN, useCooldown);
+            UseCooldown useCooldown = new UseCooldown(this.config.growCooldown / (float) SharedConstants.TICKS_PER_SECOND, Optional.of(GROWTH_ID));
+            this.growthStack.set(DataComponents.USE_COOLDOWN, useCooldown);
         } else {
             this.growthStack = BASE_GROWTH_STACK;
         }
 
-        this.sidebar = widgets.addSidebar(Text.translatable("text.slime_mould.sidebar.title").formatted(Formatting.RED, Formatting.BOLD));
+        this.sidebar = widgets.addSidebar(Component.translatable("text.slime_mould.sidebar.title").withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
     }
 
-    public static void open(GameSpace gameSpace, ServerWorld world, SlimeMouldMap map, SlimeMouldConfig config) {
+    public static void open(GameSpace gameSpace, ServerLevel world, SlimeMouldMap map, SlimeMouldConfig config) {
         gameSpace.setActivity(activity -> {
             GlobalWidgets widgets = GlobalWidgets.addTo(activity);
 
@@ -150,11 +151,11 @@ public final class SlimeMouldActive {
 
         PlayerSet players = this.gameSpace.getPlayers();
 
-        List<DyeColor> colors = SlimeMouldColors.shuffledColors(this.world.random);
+        List<DyeColor> colors = SlimeMouldColors.shuffledColors(this.world.getRandom());
 
         int i = 0;
 
-        for (ServerPlayerEntity player : players) {
+        for (ServerPlayer player : players) {
             Mould mould = new Mould(player, colors.get(i), this.config.initialFoodLevel);
             this.playerToMould.put(player.getGameProfile(), mould);
 
@@ -169,25 +170,25 @@ public final class SlimeMouldActive {
         this.spawnInitialFood();
 
         this.singlePlayer = players.size() == 1;
-        this.lastFoodSpawnTime = this.world.getTime();
+        this.lastFoodSpawnTime = this.world.getGameTime();
 
         this.updateSidebar();
     }
 
-    private void spawnPlayer(ServerPlayerEntity player, Mould mould, double theta, double radius) {
+    private void spawnPlayer(ServerPlayer player, Mould mould, double theta, double radius) {
         float yaw = (float) Math.toDegrees(theta);
 
         BlockPos spawnPos = this.map.getPlate().getSpawnPos(theta, radius);
-        player.teleport(this.world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, Set.of(), yaw, 0.0F, true);
+        player.teleportTo(this.world, spawnPos.getX() + 0.5, spawnPos.getY() + 1, spawnPos.getZ() + 0.5, Set.of(), yaw, 0.0F, true);
 
-        this.world.setBlockState(spawnPos, mould.block);
+        this.world.setBlockAndUpdate(spawnPos, mould.block);
 
-        player.getInventory().insertStack(this.growthStack.copy());
+        player.getInventory().add(this.growthStack.copy());
 
-        EntityAttributeInstance jumpStrength = player.getAttributes().getCustomInstance(EntityAttributes.JUMP_STRENGTH);
+        AttributeInstance jumpStrength = player.getAttributes().getInstance(Attributes.JUMP_STRENGTH);
         jumpStrength.setBaseValue(0);
 
-        player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, Integer.MAX_VALUE, 0, false, false));
+        player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, Integer.MAX_VALUE, 0, false, false));
     }
 
     private void spawnInitialFood() {
@@ -202,7 +203,7 @@ public final class SlimeMouldActive {
     }
 
     private void tick() {
-        long time = this.world.getTime();
+        long time = this.world.getGameTime();
 
         if (this.closeTime > 0) {
             this.tickClosing(time);
@@ -226,7 +227,7 @@ public final class SlimeMouldActive {
     }
 
     private boolean trySpawnFood() {
-        BlockPos foodSpawnPos = this.findFoodSpawnPos(this.world, this.world.random);
+        BlockPos foodSpawnPos = this.findFoodSpawnPos(this.world, this.world.getRandom());
         if (foodSpawnPos == null) {
             return false;
         }
@@ -235,19 +236,19 @@ public final class SlimeMouldActive {
     }
 
     @Nullable
-    private BlockPos findFoodSpawnPos(ServerWorld world, Random random) {
+    private BlockPos findFoodSpawnPos(ServerLevel world, RandomSource random) {
         SlimeMouldPlate plate = this.map.getPlate();
         BlockPos spawnPos = plate.getRandomSurfacePos(random);
 
         if (plate.testSurface(world, spawnPos).isSterile()) {
-            return spawnPos.up();
+            return spawnPos.above();
         } else {
             return null;
         }
     }
 
     private void tickMoulds() {
-        for (ServerPlayerEntity player : this.gameSpace.getPlayers()) {
+        for (ServerPlayer player : this.gameSpace.getPlayers()) {
             Mould mould = this.playerToMould.get(player.getGameProfile());
             if (mould != null) {
                 this.tickMould(player, mould);
@@ -255,8 +256,8 @@ public final class SlimeMouldActive {
         }
     }
 
-    private void tickMould(ServerPlayerEntity player, Mould mould) {
-        BlockPos pos = player.getBlockPos();
+    private void tickMould(ServerPlayer player, Mould mould) {
+        BlockPos pos = player.blockPosition();
         if (mould.moveTo(pos)) {
             this.onMouldMove(player, mould, pos);
         }
@@ -268,16 +269,16 @@ public final class SlimeMouldActive {
         }
     }
 
-    private void onMouldMove(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        BlockState surface = player.getWorld().getBlockState(pos.down());
+    private void onMouldMove(ServerPlayer player, Mould mould, BlockPos pos) {
+        BlockState surface = player.level().getBlockState(pos.below());
 
         boolean slowed = surface != mould.block && !this.hasAdjacentMould(pos, mould);
 
         if (mould.updateSlowed(slowed)) {
-            EntityAttributeInstance attribute = player.getAttributes().getCustomInstance(EntityAttributes.MOVEMENT_SPEED);
+            AttributeInstance attribute = player.getAttributes().getInstance(Attributes.MOVEMENT_SPEED);
             if (attribute != null) {
                 if (slowed) {
-                    attribute.addTemporaryModifier(STRETCHED_THIN_MODIFIER);
+                    attribute.addTransientModifier(STRETCHED_THIN_MODIFIER);
                 } else {
                     attribute.removeModifier(STRETCHED_THIN_MODIFIER_ID);
                 }
@@ -285,24 +286,24 @@ public final class SlimeMouldActive {
         }
     }
 
-    private ActionResult onUseBlock(ServerPlayerEntity player, Hand hand, BlockHitResult result) {
-        if (player.getStackInHand(hand).getItem() == GROWTH_ITEM) {
+    private InteractionResult onUseBlock(ServerPlayer player, InteractionHand hand, BlockHitResult result) {
+        if (player.getItemInHand(hand).getItem() == GROWTH_ITEM) {
             Mould mould = this.playerToMould.get(player.getGameProfile());
             if (mould == null) {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
 
             BlockPos pos = result.getBlockPos();
             if (this.tryGrowInto(player, mould, pos)) {
-                return ActionResult.SUCCESS;
+                return InteractionResult.SUCCESS;
             }
         }
 
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 
-    private boolean tryGrowInto(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        if (this.world.getBlockState(pos) == mould.block || player.getItemCooldownManager().isCoolingDown(this.growthStack)) {
+    private boolean tryGrowInto(ServerPlayer player, Mould mould, BlockPos pos) {
+        if (this.world.getBlockState(pos) == mould.block || player.getCooldowns().isOnCooldown(this.growthStack)) {
             return false;
         }
 
@@ -319,23 +320,23 @@ public final class SlimeMouldActive {
         }
     }
 
-    private void growInto(ServerPlayerEntity player, Mould mould, BlockPos pos) {
-        UseCooldownComponent useCooldown = this.growthStack.get(DataComponentTypes.USE_COOLDOWN);
+    private void growInto(ServerPlayer player, Mould mould, BlockPos pos) {
+        UseCooldown useCooldown = this.growthStack.get(DataComponents.USE_COOLDOWN);
         if (useCooldown != null) {
-            useCooldown.set(this.growthStack, player);
+            useCooldown.apply(this.growthStack, player);
         }
 
-        if (this.food.removeFoodAt(pos.up())) {
-            player.playSoundToPlayer(SoundEvents.ENTITY_PLAYER_BURP, SoundCategory.PLAYERS, 1.0F, 1.0F);
+        if (this.food.removeFoodAt(pos.above())) {
+            PlayerUtil.playSoundToPlayer(player, SoundEvents.PLAYER_BURP, SoundSource.PLAYERS, 1.0F, 1.0F);
             mould.food += this.config.foodLevelPerFood;
         }
 
-        Mould existingMould = this.getMouldFor(player.getWorld().getBlockState(pos));
+        Mould existingMould = this.getMouldFor(player.level().getBlockState(pos));
         if (existingMould != null && --existingMould.score <= 0) {
             this.eliminate(existingMould);
         }
 
-        player.getWorld().setBlockState(pos, mould.block);
+        player.level().setBlockAndUpdate(pos, mould.block);
         mould.score++;
 
         this.updateFoodBar(player, mould);
@@ -343,9 +344,9 @@ public final class SlimeMouldActive {
     }
 
     private boolean hasAdjacentMould(BlockPos pos, Mould mould) {
-        BlockPos.Mutable mutablePos = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
         for (int i = 0; i < 4; i++) {
-            mutablePos.set(pos, Direction.fromHorizontalQuarterTurns(i));
+            mutablePos.setWithOffset(pos, Direction.from2DDataValue(i));
             if (this.world.getBlockState(mutablePos) == mould.block) {
                 return true;
             }
@@ -371,28 +372,28 @@ public final class SlimeMouldActive {
 
     private JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
         return acceptor.teleport(this.world, this.map.getWaitingSpawn()).thenRunForEach(player -> {
-            player.changeGameMode(GameMode.SPECTATOR);
+            player.setGameMode(GameType.SPECTATOR);
         });
     }
 
-    private void updateFoodBar(ServerPlayerEntity player, Mould mould) {
+    private void updateFoodBar(ServerPlayer player, Mould mould) {
         player.experienceProgress = 1.0F;
-        player.setExperienceLevel(mould.food);
+        player.setExperienceLevels(mould.food);
     }
 
     private void updateSidebar() {
         this.sidebar.set(content -> {
-            content.add(Text.translatable("text.slime_mould.sidebar.description").formatted(Formatting.GREEN));
-            content.add(ScreenTexts.EMPTY);
+            content.add(Component.translatable("text.slime_mould.sidebar.description").withStyle(ChatFormatting.GREEN));
+            content.add(CommonComponents.EMPTY);
 
             this.playerToMould.values().stream()
                     .sorted(Comparator.comparingInt(mould -> -mould.score))
                     .limit(8)
                     .forEach(mould -> {
-                        Text name = mould.team.config().name();
-                        Text score = Text.literal(mould.score + "").formatted(Formatting.GOLD);
+                        Component name = mould.team.config().name();
+                        Component score = Component.literal(mould.score + "").withStyle(ChatFormatting.GOLD);
 
-                        content.add(Text.translatable("text.slime_mould.sidebar.line", name, score));
+                        content.add(Component.translatable("text.slime_mould.sidebar.line", name, score));
                     });
         });
     }
@@ -410,8 +411,8 @@ public final class SlimeMouldActive {
     private void eliminate(Mould mould) {
         if (this.playerToMould.remove(mould.player, mould)) {
             this.gameSpace.getPlayers().sendMessage(
-                    Text.translatable("text.slime_mould.eliminated", mould.player.getName())
-                            .formatted(Formatting.RED)
+                    Component.translatable("text.slime_mould.eliminated", mould.player.name())
+                            .withStyle(ChatFormatting.RED)
             );
         }
     }
@@ -433,15 +434,15 @@ public final class SlimeMouldActive {
         int food;
         int score = 1;
 
-        Mould(ServerPlayerEntity player, DyeColor dyeColor, int initialFood) {
+        Mould(ServerPlayer player, DyeColor dyeColor, int initialFood) {
             GameProfile profile = player.getGameProfile();
             this.player = profile;
 
             this.dyeColor = dyeColor;
 
-            GameTeamKey key = new GameTeamKey(dyeColor.getId());
+            GameTeamKey key = new GameTeamKey(dyeColor.getName());
             GameTeamConfig teamConfig = GameTeamConfig.builder()
-                    .setName(Text.literal(profile.getName()))
+                    .setName(Component.literal(profile.name()))
                     .setColors(GameTeamConfig.Colors.from(dyeColor))
                     .build();
 

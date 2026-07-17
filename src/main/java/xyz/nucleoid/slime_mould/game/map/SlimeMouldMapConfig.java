@@ -2,7 +2,7 @@ package xyz.nucleoid.slime_mould.game.map;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 
 public final class SlimeMouldMapConfig {
     public static final Codec<SlimeMouldMapConfig> CODEC = RecordCodecBuilder.create(instance -> {
